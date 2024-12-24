@@ -1,32 +1,37 @@
-use crate::Context;
 use raylib::prelude::*;
+use serde_derive::{Deserialize, Serialize};
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ChannelData {
     pub channel: u8,
     pub value: u8,
 }
 
-pub trait Fixture: std::fmt::Debug {
-    fn channels(&self) -> Vec<ChannelData>;
-    fn name(&self) -> String;
-    fn config(&mut self, ctx: &mut Context<'_>);
-    fn render(&mut self, ctx: &mut Context<'_>);
-    fn controls(&self) -> Vec<Control>;
-    fn apply_control(&mut self, control: &Control, value: u8);
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Fixture {
+    pub channels: Vec<ChannelData>,
+    pub name: String,
+    pub controls: Vec<Control>,
 }
 
+impl Fixture {
+    pub fn apply_control(&mut self, control: &Control, value: u8) {}
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum Control {
     Slider { name: String, min: u8, max: u8 },
+    Color { name: String },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Universe {
     pub universe: u8,
     pub name: String,
-    pub fixtures: Vec<Box<dyn Fixture>>,
+    pub fixtures: Vec<Fixture>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DMX {
     pub universes: Vec<Universe>,
 }
@@ -49,7 +54,7 @@ impl DMX {
         for universe in &self.universes {
             let mut packet = [0; 512];
             for fixture in &universe.fixtures {
-                for channel in fixture.channels() {
+                for channel in &fixture.channels {
                     packet[channel.channel as usize] = channel.value;
                 }
             }

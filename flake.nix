@@ -8,7 +8,7 @@
       let pkgs = import nixpkgs { inherit system; };
       in {
         devShell = pkgs.mkShell {
-          buildInputs = with pkgs; [ glfw cmake curl raylib ];
+          buildInputs = with pkgs; [ glfw cmake curl raylib cloc ];
           shellHook = ''
             echo "default flake!"
           '';

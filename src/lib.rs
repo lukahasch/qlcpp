@@ -1,58 +1,33 @@
 #![feature(macro_metavar_expr)]
 
 use raylib::prelude::*;
+use serde_derive::{Deserialize, Serialize};
 
+pub mod context;
 pub mod dmx;
 pub mod ui;
 
+use context::Context;
 use dmx::DMX;
-use ui::{EditableText, Pageable};
-
-use crate::ui::Page;
+use ui::{
+    page::{Page, Pageable, Pages},
+    text::Text,
+    TEXT_COLOR, TEXT_SIZE,
+};
 
 pub trait Command {
     fn execute(&mut self, app: &mut Application);
 }
 
-pub struct Context<'a> {
-    pub position: Vector2,
-
-    pub width: f32,
-    pub height: f32,
-
-    pub actions: &'a mut Vec<Box<dyn Command>>,
-
-    pub draw: RaylibDrawHandle<'a>,
-}
-
-impl<'a> Context<'a> {
-    pub fn create(actions: &'a mut Vec<Box<dyn Command>>, draw: RaylibDrawHandle<'a>) -> Self {
-        Self {
-            position: Vector2::new(0.0, 0.0),
-            width: draw.get_screen_width() as f32,
-            height: draw.get_screen_height() as f32,
-            actions,
-            draw,
-        }
-    }
-
-    pub fn draw_text(&mut self, text: &str, x: f32, y: f32, size: i32, color: Color) {
-        self.draw.draw_text(
-            text,
-            x as i32 + self.position.x as i32,
-            y as i32 + self.position.y as i32,
-            size,
-            color,
-        );
-    }
-}
-
+#[derive(Serialize, Deserialize)]
 pub struct Application {
     pub dmx: dmx::DMX,
     pub name: String,
-    pub title: EditableText,
+    pub title: Text,
 
+    #[serde(skip, default)]
     pub actions: Vec<Box<dyn Command>>,
+    #[serde(skip, default)]
     pub from_top: usize,
 
     pub pages: Page<(Setup, Scenes)>,
@@ -69,7 +44,7 @@ impl Application {
         Self {
             dmx: DMX::new(),
             name: String::from("Untitled"),
-            title: EditableText::new(Vector2::new(10.0, 10.0), 20, Color::WHITE),
+            title: Text::new(Vector2::new(10.0, 10.0), TEXT_COLOR, TEXT_SIZE),
             actions: Vec::new(),
             from_top: 0,
             pages: Page::new((Setup::new(), Scenes::new())),
@@ -87,22 +62,24 @@ impl Application {
         rl.set_exit_key(Some(KeyboardKey::KEY_F12));
 
         while !rl.window_should_close() {
-            let mut d = rl.begin_drawing(&thread);
-
-            d.clear_background(Color::DIMGRAY.brightness(-0.2));
-
-            let name = self.name.clone();
-
-            let mut ctx = Context::create(&mut self.actions, d);
-
+            let mut ctx = Context::new(&mut rl, &thread, &mut self.actions);
             self.title.draw(&mut self.name, &mut ctx);
-
             self.pages.draw(&mut ctx, &mut self.dmx);
-            self.pages.update(&mut ctx, &mut self.dmx);
         }
+    }
+
+    pub fn save(&self) {
+        let data = serde_json::to_string(&self).unwrap();
+        std::fs::write(format!("{}.json", self.name), data).unwrap();
+    }
+
+    pub fn load(&mut self) {
+        let data = std::fs::read_to_string(format!("{}.json", self.name)).unwrap();
+        *self = serde_json::from_str(&data).unwrap();
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Setup {}
 
 impl Default for Setup {
@@ -117,6 +94,12 @@ impl Setup {
     }
 }
 
+impl Pageable for Setup {
+    fn draw<'a, T: RaylibDraw>(&mut self, ctx: &mut Context<'a, T>, dmx: &mut DMX) {}
+    fn update<'a, T: RaylibDraw>(&mut self, ctx: &mut Context<'a, T>, dmx: &mut DMX) {}
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Scenes {}
 
 impl Default for Scenes {
@@ -131,12 +114,7 @@ impl Scenes {
     }
 }
 
-impl Pageable for Setup {
-    fn draw(&mut self, ctx: &mut Context<'_>, dmx: &mut DMX) {}
-    fn update(&mut self, ctx: &mut Context<'_>, dmx: &mut DMX) {}
-}
-
 impl Pageable for Scenes {
-    fn draw(&mut self, ctx: &mut Context<'_>, dmx: &mut DMX) {}
-    fn update(&mut self, ctx: &mut Context<'_>, dmx: &mut DMX) {}
+    fn draw<'a, T: RaylibDraw>(&mut self, ctx: &mut Context<'a, T>, dmx: &mut DMX) {}
+    fn update<'a, T: RaylibDraw>(&mut self, ctx: &mut Context<'a, T>, dmx: &mut DMX) {}
 }
